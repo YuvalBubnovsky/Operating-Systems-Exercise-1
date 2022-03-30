@@ -2,7 +2,7 @@ FLAGS = -g -Wall
 CC = gcc
 .PHONY: clean
 
-all: shell serv
+all: shell server
 
 shell: shell.o
 	$(CC) $(FLAGS) -o shell shell.o
@@ -10,14 +10,14 @@ shell: shell.o
 shell.o: shell.c
 	$(CC) $(FLAGS) -c shell.c
 
-serv: tcp_server.o
-	$(CC) $(FLAGS) -o serv tcp_server.o
+server: tcp_server.o
+	$(CC) $(FLAGS) -o server tcp_server.o
 
 tcp_server.o: tcp_server.c
 	$(CC) $(FLAGS) -c tcp_server.c
 
 clean:
-	rm -f *.o *.a *.so serv shell
+	rm -f *.o *.a *.so server shell
 
 
 
