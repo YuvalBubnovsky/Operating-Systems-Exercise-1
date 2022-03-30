@@ -52,10 +52,6 @@ int (*func_implements[])(char **) = {
     &delete,
     &shell_exit};
 
-/*
-  Builtin function implementations.
-*/
-
 int echo(char **args)
 {
     if (args[1] == NULL)
@@ -102,7 +98,8 @@ int dir(char **args)
     return 1;
 }
 
-int cd(char **args)
+int cd(char **args) // thank you - https://man7.org/linux/man-pages/man2/chdir.2.html
+                    // this function is also similar to Brennan's for a lack of better implementation
 {
     if (args[1] == NULL)
     {
@@ -144,7 +141,7 @@ int copy(char **args)
     return 1;
 }
 
-int delete (char **args)
+int delete (char **args) // manpages are the best - https://man7.org/linux/man-pages/man2/unlink.2.html
 {
     if (args[1] == NULL)
     {
@@ -160,44 +157,15 @@ int delete (char **args)
     return 1;
 }
 
-int shell_exit(char **args)
+int shell_exit(char **args) // also taken as-is from Brennan's blog for a lack
+                            // of a more suitable implementation
 {
     return 0;
 }
 
-int system_call(char **args)
-{
-    pid_t pid;
-    int flag;
 
-    pid = fork();
-    if (pid == 0)
-    {
-        if (execvp(args[0], args) == -1)
-        {
-            perror("shell");
-        }
-        exit(1);
-    }
-    else if (pid < 0)
-    {
-        perror("shell");
-    }
-    else
-    {
-        // https://www.ibm.com/docs/en/zos/2.3.0?topic=functions-waitpid-wait-specific-child-process-end
-        // WIFEXITED - queries the child termination status provided by the wait and waitpid functions, and determines whether the child process ended normally.
-        // WIFSIGNALED - queries the child termination status provided by the wait and waitpid functions. It determines if the child process exited because it raised a signal that caused it to exit
-        // WUNTRACED - Reports on stopped child processes as well as terminated ones
-        while (!WIFEXITED(flag) && !(WIFSIGNALED(flag)))
-        {
-            waitpid(pid, &flag, WUNTRACED);
-        }
-    }
-    return 1;
-}
-
-int execute(char **args)
+int execute(char **args) // this function is taken straight is from Brennan's blog, linked at the top
+                         // it's one of the catalysts for the whole code
 {
     if (args[0] == NULL)
     {
@@ -212,8 +180,32 @@ int execute(char **args)
         }
     }
 
-    // return system(args[0]); // if no built-in command is found, use system for it
-    return system_call(args);
+    // system(args[0]); - this is the implementation without fork,execvp,wait
+
+    // Below is how we should proceed if the user is inputting a command which is not
+    // a shell built-in using for,execvp,wait
+
+    pid_t pid;
+    int flag;
+
+    pid = fork();
+    if (pid == 0) // This is the child process
+    {
+        if (execvp(args[0], args) == -1)
+        {
+            perror("shell");
+        }
+        exit(1);
+    }
+    else if (pid < 0) // This is the parent process, but the child couldn't be created
+    {
+        perror("shell");
+    }
+    else // This is the parent process
+    {
+        waitpid(pid, &flag, 0);
+    }
+    return 1;
 }
 
 char *read_command(void)
