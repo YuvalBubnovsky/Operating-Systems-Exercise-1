@@ -23,7 +23,7 @@ for how to write a proper shell, some basic functions are identical as we believ
 is the best way to implement them. Awesome blog post which summerizes shell quite nicely.
 */
 
-char *builtin_str[] = {
+char *func_names[] = {
     "echo",
     "tcp port",
     "local",
@@ -42,10 +42,10 @@ int copy(char **args);
 int delete (char **args);
 int shell_exit(char **args);
 
-int (*builtin_func[])(char **) = {
+int (*func_implements[])(char **) = {
     &echo,
-    &tcp_port,
-    &local,
+    &tcp_port, // TODO: implement
+    &local,    // TODO: implement
     &dir,
     &cd,
     &copy,
@@ -56,7 +56,146 @@ int (*builtin_func[])(char **) = {
   Builtin function implementations.
 */
 
+int echo(char **args)
+{
+    if (args[1] == NULL)
+    {
+        fprintf(stderr, "shell error: expected argument to \"echo\"\n");
+    }
+    else
+    {
+        printf("ECHOING: %s\n", args[1]);
+    }
+    return 1;
+}
 
+int tcp_port(char **args)
+{
+    return 1; // placeholder
+}
+
+int local(char **args)
+{
+    return 1; // placeholder
+}
+
+// Thanks to https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
+int dir(char **args)
+{
+
+    DIR *dir_p = opendir("."); // returns NULL on error
+    if (dir_p == NULL)
+    {
+        fprintf(stderr, "Error opening directory pointer");
+    }
+    else
+    {
+        struct dirent *file_p;
+        while ((file_p = readdir(dir_p)) != NULL)
+        {
+            printf("| %s |", file_p->d_name);
+        }
+        printf("\n");
+        closedir(dir_p);
+    }
+
+    return 1;
+}
+
+int cd(char **args)
+{
+    if (args[1] == NULL)
+    {
+        fprintf(stderr, "shell error: expected argument to \"cd\"\n");
+    }
+    else
+    {
+        if (chdir(args[1]) != 0) // on chdir succuess, 0 is returned
+        {
+            perror("chdir");
+        }
+    }
+    return 1;
+}
+
+int copy(char **args)
+{
+    if (args[1] == NULL)
+    {
+        fprintf(stderr, "shell error: expected argument to \"copy\"\n");
+    }
+    else
+    {
+        FILE *src = fopen(args[1], "r");
+        FILE *dest = fopen(args[2], "w+");
+        if (src == NULL || dest == NULL)
+        {
+            perror("fopen");
+        }
+        char buffer[256];
+        int data;
+        while ((data = fread(buffer, 1, 256, src)) != 0)
+        {
+            fwrite(buffer, 1, data, dest);
+        }
+        fclose(src);
+        fclose(dest);
+    }
+    return 1;
+}
+
+int delete (char **args)
+{
+    if (args[1] == NULL)
+    {
+        fprintf(stderr, "shell error: expected argument to \"delete\"\n");
+    }
+    else
+    {
+        if (unlink(args[1]) != 0)
+        {
+            perror("unlink");
+        }
+    }
+    return 1;
+}
+
+int shell_exit(char **args)
+{
+    return 0;
+}
+
+int system_call(char **args)
+{
+    pid_t pid;
+    int flag;
+
+    pid = fork();
+    if (pid == 0)
+    {
+        if (execvp(args[0], args) == -1)
+        {
+            perror("shell");
+        }
+        exit(1);
+    }
+    else if (pid < 0)
+    {
+        perror("shell");
+    }
+    else
+    {
+        // https://www.ibm.com/docs/en/zos/2.3.0?topic=functions-waitpid-wait-specific-child-process-end
+        // WIFEXITED - queries the child termination status provided by the wait and waitpid functions, and determines whether the child process ended normally.
+        // WIFSIGNALED - queries the child termination status provided by the wait and waitpid functions. It determines if the child process exited because it raised a signal that caused it to exit
+        // WUNTRACED - Reports on stopped child processes as well as terminated ones
+        while (!WIFEXITED(flag) && !(WIFSIGNALED(flag)))
+        {
+            waitpid(pid, &flag, WUNTRACED);
+        }
+    }
+    return 1;
+}
 
 int execute(char **args)
 {
@@ -67,15 +206,16 @@ int execute(char **args)
 
     for (int i = 0; i < NUM_BUILT_IN; i++)
     {
-        if (strcmp(args[0], builtin_str[i]) == 0)
+        if (strcmp(args[0], func_names[i]) == 0)
         {
-            return (*builtin_func[i])(args);
+            return (*func_implements[i])(args);
         }
     }
 
-    return system(args[0]); // if no built-in command is found, use system for it
-                            // TODO: Check to see if there's a safer way to do this (depends on system return value)
+    // return system(args[0]); // if no built-in command is found, use system for it
+    return system_call(args);
 }
+
 char *read_command(void)
 {
     char *input = NULL;   // we set to NULL so getline will allocate a buffer for storing the line
@@ -128,10 +268,13 @@ void command_loop(void)
     char *commands;
     char **args;
     int flag = 1;
+    char *cwd = (char *)malloc(2048);
 
     while (flag)
     {
-        printf("yes master?");
+        // printf("yes master?");
+        getcwd(cwd, 2047);
+        printf("%s~$ ", cwd);
         commands = read_command();
         args = parse_args(commands);
         flag = execute(args);
@@ -139,6 +282,7 @@ void command_loop(void)
         free(commands);
         free(args);
     }
+    free(cwd);
 }
 
 int main()
