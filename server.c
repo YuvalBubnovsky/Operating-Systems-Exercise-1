@@ -15,8 +15,7 @@
 
 #define PORT 6090
 #define ADDRESS "127.0.0.1"
-#define SIZE 1048576
-#define MTU 1024
+#define MTU 1500
 
 int main()
 {
@@ -24,7 +23,6 @@ int main()
     int conn_status;
     int sock, sock_recv;
     struct sockaddr_in server_addr;
-
 
     char buffer[MTU];
 
@@ -53,7 +51,7 @@ int main()
     }
 
     int e;
-
+    printf("Ready To Serve!\n");
     e = listen(sock, 10);
     if (e < 0)
     {
@@ -65,12 +63,17 @@ int main()
         perror("accept");
         exit(1);
     }
-    
+
     int n;
-    while(n = recv(sock_recv, &buffer, sizeof(buffer), 0) > 0){
-        continue;
+    while (n = recv(sock_recv, &buffer, sizeof(buffer), 0) > 0)
+    {
+        if (n == -1)
+        {
+            perror("recv");
+        }
+        printf("%s\n", buffer);
+        memset(buffer, '\0', MTU); // clean buffer
     }
-    
 
     bzero(buffer, MTU);
     close(sock_recv);

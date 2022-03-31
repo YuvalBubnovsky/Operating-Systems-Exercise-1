@@ -16,6 +16,9 @@
 #define TOKEN_SIZE 256
 
 #define NUM_BUILT_IN 8
+#define MTU 1500
+
+int sock = -1;
 
 /*
 Used this https://brennan.io/2015/01/16/write-a-shell-in-c/ as a strong reference
@@ -25,7 +28,7 @@ is the best way to implement them. Awesome blog post which summerizes shell quit
 
 char *func_names[] = {
     "echo",
-    "tcp port",
+    "tcp_port",
     "local",
     "dir",
     "cd",
@@ -35,7 +38,7 @@ char *func_names[] = {
 
 int echo(char **args);
 int tcp_port(char **args);
-int local(char **args);
+int local();
 int dir(char **args);
 int cd(char **args);
 int copy(char **args);
@@ -52,27 +55,88 @@ int (*func_implements[])(char **) = {
     &delete,
     &shell_exit};
 
+void print_control(char *to_print)
+{
+    if (sock < 0)
+    {
+        printf("%s", to_print);
+    }
+    else
+    {
+        int j = 0;
+        int bytes_sent = 0;
+        int packet_len = 0;
+        char buffer[MTU + 1];
+        int length = strlen(to_print);
+        bzero(buffer, sizeof(buffer)); // to avoid junk values
+        for (int i = 0; i < length; i += MTU)
+        {
+            j = 0;
+            for (; i + j < length && j < MTU; j++)
+            {
+                buffer[j] = to_print[i + j];
+            }
+            buffer[j] = '\0';
+            packet_len = strlen(buffer);
+            if (packet_len == 0)
+            {
+                i = length;
+                continue;
+            }
+            else
+            {
+                bytes_sent = send(sock, buffer, packet_len, 0);
+                if (bytes_sent == -1)
+                {
+                    perror("send");
+                }
+            }
+        }
+    }
+}
+
 int echo(char **args)
 {
     if (args[1] == NULL)
     {
-        fprintf(stderr, "shell error: expected argument to \"echo\"\n");
+        print_control("shell error: expected argument to \"echo\"\n");
     }
     else
     {
-        printf("ECHOING: %s\n", args[1]);
+        print_control(strcat(args[1], "\n"));
     }
     return 1;
 }
 
 int tcp_port(char **args)
 {
-    return 1; // placeholder
+    // creating a TCP socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+    {
+        perror("socket\n");
+    }
+    struct sockaddr_in server_address;
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(SERVER_PORT);
+    int rval = inet_pton(AF_INET, (const char *)SERVER_IP_ADDRESS, &server_address.sin_addr);
+    if (rval <= 0)
+    {
+        perror("rvel");
+    }
+    int conn_status = connect(sock, (struct sockaddr *)&server_address, sizeof(server_address));
+    if (conn_status < 0)
+    {
+        perror("conn_status");
+    }
+    return 1;
 }
 
-int local(char **args)
+int local()
 {
-    return 1; // placeholder
+    close(sock);
+    sock = -1;
+    return 1;
 }
 
 // Thanks to https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
@@ -82,16 +146,29 @@ int dir(char **args)
     DIR *dir_p = opendir("."); // returns NULL on error
     if (dir_p == NULL)
     {
-        fprintf(stderr, "Error opening directory pointer");
+        print_control("Error opening directory pointer\n");
     }
     else
     {
+        char *cat = (char *)malloc(sizeof(char));
+        if (cat == NULL)
+        {
+            print_control("allocation error");
+            return 1;
+        }
         struct dirent *file_p;
         while ((file_p = readdir(dir_p)) != NULL)
         {
-            printf("| %s |", file_p->d_name);
+            if (realloc(cat, sizeof(cat) + sizeof(file_p->d_name) + sizeof(" | ")) == NULL)
+            {
+                print_control("reallocation error");
+            }
+            strcat(cat, file_p->d_name);
+            strcat(cat, " | ");
         }
-        printf("\n");
+        strcat(cat, "\n");
+        print_control(cat);
+        free(cat);
         closedir(dir_p);
     }
 
@@ -100,26 +177,27 @@ int dir(char **args)
 
 int cd(char **args) // thank you - https://man7.org/linux/man-pages/man2/chdir.2.html
                     // this function is also similar to Brennan's for a lack of better implementation
+                    // Q7 - this is a library function, can be found in <unistd.h>
 {
     if (args[1] == NULL)
     {
-        fprintf(stderr, "shell error: expected argument to \"cd\"\n");
+        print_control("shell error: expected argument to \"cd\"\n");
     }
     else
     {
         if (chdir(args[1]) != 0) // on chdir succuess, 0 is returned
         {
-            perror("chdir");
+            perror("chdir\n");
         }
     }
     return 1;
 }
 
-int copy(char **args)
+int copy(char **args) // Q10 - fopen(), fread() & fwrite() are all library functions that can be found at <stdio.h>
 {
     if (args[1] == NULL)
     {
-        fprintf(stderr, "shell error: expected argument to \"copy\"\n");
+        print_control("shell error: expected argument to \"copy\"\n");
     }
     else
     {
@@ -142,16 +220,17 @@ int copy(char **args)
 }
 
 int delete (char **args) // manpages are the best - https://man7.org/linux/man-pages/man2/unlink.2.html
+                         // Q.11 - unlink() is a library function, found in <unistd.h>
 {
     if (args[1] == NULL)
     {
-        fprintf(stderr, "shell error: expected argument to \"delete\"\n");
+        print_control("shell error: expected argument to \"delete\"\n");
     }
     else
     {
         if (unlink(args[1]) != 0)
         {
-            perror("unlink");
+            perror("unlink\n");
         }
     }
     return 1;
@@ -160,9 +239,12 @@ int delete (char **args) // manpages are the best - https://man7.org/linux/man-p
 int shell_exit(char **args) // also taken as-is from Brennan's blog for a lack
                             // of a more suitable implementation
 {
+    if (sock >= 0)
+    {
+        local();
+    }
     return 0;
 }
-
 
 int execute(char **args) // this function is taken straight is from Brennan's blog, linked at the top
                          // it's one of the catalysts for the whole code
@@ -181,6 +263,7 @@ int execute(char **args) // this function is taken straight is from Brennan's bl
     }
 
     // system(args[0]); - this is the implementation without fork,execvp,wait
+    // Q8 - system() is a library method, it can be found in <stdlib.h>
 
     // Below is how we should proceed if the user is inputting a command which is not
     // a shell built-in using for,execvp,wait
@@ -191,6 +274,11 @@ int execute(char **args) // this function is taken straight is from Brennan's bl
     pid = fork();
     if (pid == 0) // This is the child process
     {
+        if (sock >= 0)
+        { // https://stackoverflow.com/questions/8100817/redirect-stdout-and-stderr-to-socket-in-c
+            dup2(sock, STDOUT_FILENO);
+            dup2(sock, STDERR_FILENO);
+        }
         if (execvp(args[0], args) == -1)
         {
             perror("shell");
@@ -265,8 +353,10 @@ void command_loop(void)
     while (flag)
     {
         // printf("yes master?");
+        // Q1 - below is the code the get & display current working directory
         getcwd(cwd, 2047);
-        printf("%s~$ ", cwd);
+        strcat(cwd, "~$ ");
+        print_control(cwd);
         commands = read_command();
         args = parse_args(commands);
         flag = execute(args);
