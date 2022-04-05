@@ -47,8 +47,8 @@ int shell_exit(char **args);
 
 int (*func_implements[])(char **) = {
     &echo,
-    &tcp_port, // TODO: implement
-    &local,    // TODO: implement
+    &tcp_port,
+    &local,    
     &dir,
     &cd,
     &copy,
