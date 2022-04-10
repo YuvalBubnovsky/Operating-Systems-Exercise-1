@@ -39,7 +39,7 @@ char *func_names[] = {
 int echo(char **args);
 int tcp_port(char **args);
 int local();
-int dir(char **args);
+int dir();
 int cd(char **args);
 int copy(char **args);
 int delete (char **args);
@@ -140,7 +140,7 @@ int local()
 }
 
 // Thanks to https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
-int dir(char **args)
+int dir()
 {
 
     DIR *dir_p = opendir("."); // returns NULL on error
@@ -150,28 +150,19 @@ int dir(char **args)
     }
     else
     {
-        char *cat = (char *)malloc(sizeof(char));
-        if (cat == NULL)
-        {
-            print_control("allocation error");
-            return 1;
+        if (sock >= 0)
+        { // https://stackoverflow.com/questions/8100817/redirect-stdout-and-stderr-to-socket-in-c
+            dup2(sock, STDOUT_FILENO);
+            dup2(sock, STDERR_FILENO);
         }
         struct dirent *file_p;
         while ((file_p = readdir(dir_p)) != NULL)
         {
-            if (realloc(cat, sizeof(cat) + sizeof(file_p->d_name) + sizeof(" | ")) == NULL)
-            {
-                print_control("reallocation error");
-            }
-            strcat(cat, file_p->d_name);
-            strcat(cat, " | ");
+            printf("%s | ", file_p->d_name);
         }
-        strcat(cat, "\n");
-        print_control(cat);
-        free(cat);
+        printf("\n");
         closedir(dir_p);
     }
-
     return 1;
 }
 
