@@ -48,7 +48,7 @@ int shell_exit(char **args);
 int (*func_implements[])(char **) = {
     &echo,
     &tcp_port,
-    &local,    
+    &local,
     &dir,
     &cd,
     &copy,
@@ -134,34 +134,41 @@ int tcp_port(char **args)
 
 int local()
 {
-    close(sock);
-    sock = -1;
+    if (sock >= 0)
+    {
+        close(sock);
+        dup2(STDOUT_FILENO, sock);
+        sock = -1;
+    }
+
+    // close(sock);
     return 1;
 }
 
 // Thanks to https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
 int dir()
 {
-
-    DIR *dir_p = opendir("."); // returns NULL on error
-    if (dir_p == NULL)
+    if (sock >= 0)
     {
-        print_control("Error opening directory pointer\n");
+        print_control("dir");
     }
     else
     {
-        if (sock >= 0)
-        { // https://stackoverflow.com/questions/8100817/redirect-stdout-and-stderr-to-socket-in-c
-            dup2(sock, STDOUT_FILENO);
-            dup2(sock, STDERR_FILENO);
-        }
-        struct dirent *file_p;
-        while ((file_p = readdir(dir_p)) != NULL)
+        DIR *dir_p = opendir("."); // returns NULL on error
+        if (dir_p == NULL)
         {
-            printf("%s | ", file_p->d_name);
+            printf("Error opening directory pointer\n");
         }
-        printf("\n");
-        closedir(dir_p);
+        else
+        {
+            struct dirent *file_p;
+            while ((file_p = readdir(dir_p)) != NULL)
+            {
+                printf("%s | ", file_p->d_name);
+            }
+            printf("\n");
+            closedir(dir_p);
+        }
     }
     return 1;
 }
@@ -360,8 +367,6 @@ void command_loop(void)
 
 int main()
 {
-
     command_loop();
-
     return 0;
 }

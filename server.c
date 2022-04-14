@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <dirent.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -70,6 +71,24 @@ int main()
         if (n == -1)
         {
             perror("recv");
+        }
+        if (strncmp("dir", buffer, 3) == 0)
+        {
+            DIR *dir_p = opendir("."); // returns NULL on error
+            if (dir_p == NULL)
+            {
+                printf("Error opening directory pointer\n");
+            }
+            else
+            {
+                struct dirent *file_p;
+                while ((file_p = readdir(dir_p)) != NULL)
+                {
+                    printf("%s | ", file_p->d_name);
+                }
+                printf("\n");
+                closedir(dir_p);
+            }
         }
         printf("%s\n", buffer);
         memset(buffer, '\0', MTU); // clean buffer
