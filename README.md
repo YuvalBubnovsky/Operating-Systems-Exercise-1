@@ -2,7 +2,7 @@
 
 ## How To Run:
 firstly clone this repository to a convenient folder, after which you should open it using an IDE or navigate your CMD to that location and run the commands
-``` make ``` and then ``` ./server ``` to get the TCP server up & running followed by ```./shell``` which will execute our shell.
+``` make all ``` and then ``` ./server ``` to get the TCP server up & running followed by ```./shell``` which will execute our shell.
 
 ## Supported Built-Ins:
 echo, local, dir, cd, copy, delete, exit & also a custom tcp_port, local commands.
