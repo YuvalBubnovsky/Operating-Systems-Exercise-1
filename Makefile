@@ -4,11 +4,11 @@ CC = gcc
 
 all: shell server
 
-shell: shell.o
-	$(CC) $(FLAGS) -o shell shell.o
+shell: main.o
+	$(CC) $(FLAGS) -o shell main.o
 
-shell.o: shell.c
-	$(CC) $(FLAGS) -c shell.c
+main.o: main.c
+	$(CC) $(FLAGS) -c main.c
 
 server: server.o
 	$(CC) $(FLAGS) -o server server.o
